@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <input id="roomNum-inp" type="text"><button onclick="start()">start</button>
+  <br>
+  <video></video>
+  <script>
+    const inp = document.getElementById('roomNum-inp')
+    const vid = document.querySelector('video')
+    let localStream = null
+    let getCustTimer = null
+    let mainPc = null
+    vid.addEventListener("loadedmetadata", () => {
+      vid.play()
+    })
+
+    async function start() {
+      localStream = await getUserMedia()
+      vid.srcObject = localStream
+      initRTC()
+    }
+
+    async function initRTC() {
+      mainPc = new RTCPeerConnection()
+
+      mainPc.addEventListener('icecandidate', function (event) {
+        let iceCandidate = event.candidate;
+
+        console.log(iceCandidate)
+        // 实际这里会发送给信令服务转发给pc2
+        if (iceCandidate) {
+          postCandidate(iceCandidate)
+        }
+      });
+      localStream.getTracks().forEach(track => mainPc.addTrack(track, localStream));
+
+      //创建
+      let offer = await mainPc.createOffer({
+        OfferToReceiveAudio: true,
+        OfferToReceiveVideo: true
+      })
+      console.log(offer)
+      postOffer(offer)
+      mainPc.setLocalDescription(offer);
+    }
+
+    function postOffer(offer) {
+      fetch('/saveMainOffer', {
+        method: 'post',
+        headers: {
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        body: JSON.stringify(offer)
+      })
+    }
+
+    function postCandidate(candidate) {
+      fetch('/saveMainCandidate', {
+        method: 'post',
+        headers: {
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        body: JSON.stringify(candidate)
+      }).then(res=>{
+        startFindUser()
+      })
+    }
+
+    function startFindUser(){
+      getCustTimer = setInterval(()=>{
+        fetch('/').then(res=>res.json())
+          .then(({mainRoom:{ cust }})=>{
+            if(cust[0]){
+              console.log(cust[0])
+              clearInterval(getCustTimer)
+              mainPc.setRemoteDescription(cust[0])
+            }
+          })
+      },1000)
+    }
+
+    // 获取被动媒体
+    async function getUserMedia() {
+      return await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        cursor: 'always'
+      })
+      // return await navigator.mediaDevices
+      // .getUserMedia({ video: { facingMode: "user" }, audio: true })
+      // .catch(e => {
+      // console.log(e)
+      // alert(e)
+      // })
+    }
+  </script>
+</body>
+
+</html>

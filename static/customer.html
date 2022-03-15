@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <input id="roomNum-inp" type="text"><button onclick="startWatch()">start</button>
+  <br>
+  <video></video>
+  <script>
+    const vid = document.querySelector('video')
+    const offer = JSON.parse(localStorage.getItem('offer'))
+    const ices = JSON.parse(localStorage.getItem('ices'))
+    vid.addEventListener("loadedmetadata", () => {
+      vid.play()
+    })
+
+    async function startWatch() {
+      const pc = new RTCPeerConnection()
+      pc.addEventListener('addstream', function (event) {
+        vid.srcObject = event.stream;
+      })
+      getOfferAbout(pc)
+    }
+
+    function getOfferAbout(pc){
+      fetch('/').then(res=> res.json())
+      .then(({mainRoom:{ ower:owerInfo }})=>{
+        // console.log(owerInfo)
+        pc.setRemoteDescription(owerInfo.offer)
+        owerInfo.candidate.forEach(candidate => {
+          pc.addIceCandidate(candidate)
+        });
+        pc.createAnswer().then(res => {
+          pc.setLocalDescription(res)
+          postAnswer(res)
+        })
+      })
+    }
+
+    function postAnswer(answer){
+      console.log('answer',answer)
+      fetch('/addCustAnswer',{
+        method:'post',
+        headers: {
+        "Content-Type": "application/json; charset=utf-8"
+        },
+        body:JSON.stringify(answer)
+      }).then(console.log)
+    }
+  </script>
+</body>
+
+</html>
